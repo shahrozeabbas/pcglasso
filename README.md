@@ -1,5 +1,10 @@
 # pcglasso
 
+[![CI](https://github.com/shahrozeabbas/pcglasso/actions/workflows/ci.yml/badge.svg)](https://github.com/shahrozeabbas/pcglasso/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/pcglasso.svg)](https://pypi.org/project/pcglasso/)
+[![Python](https://img.shields.io/pypi/pyversions/pcglasso.svg)](https://pypi.org/project/pcglasso/)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 A fast Python implementation of the **Partial Correlation Graphical LASSO
 (PCGLASSO)** with the iterative core written in Rust (PyO3 / maturin).
 

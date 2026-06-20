@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: 'If you use this software, please cite it as below.'
+title: 'pcglasso: fast Partial Correlation Graphical LASSO'
+abstract: >-
+  A fast Python implementation of the Partial Correlation Graphical LASSO
+  (PCGLASSO) with the iterative coordinate-descent core written in Rust
+  (PyO3 / maturin).
+type: software
+authors:
+  - name: pcglasso-dev
+license: GPL-3.0-or-later
+repository-code: 'https://github.com/shahrozeabbas/pcglasso'
+url: 'https://github.com/shahrozeabbas/pcglasso'
+version: 0.1.0
+keywords:
+  - graphical-lasso
+  - partial-correlation
+  - precision-matrix
+  - gaussian-graphical-model
+  - sparse-estimation
+references:
+  - type: article
+    title: Partial correlation graphical LASSO
+    authors:
+      - family-names: Carter
+      - family-names: Rossell
+      - family-names: Smith
+    journal: Scandinavian Journal of Statistics
+    year: 2024
+  - type: article
+    title: >-
+      Existence and optimisation of the partial correlation graphical lasso
+    authors:
+      - family-names: Carter
+      - family-names: Molinari
+    year: 2025
+  - type: article
+    title: >-
+      Identifying network hubs with the partial correlation graphical LASSO
+    authors:
+      - family-names: Bogdan
+      - family-names: Chojecki
+      - family-names: Hejný
+      - family-names: Kołodziejek
+      - family-names: Wallin
+    year: 2026
