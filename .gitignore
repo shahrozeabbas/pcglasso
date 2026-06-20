@@ -1,0 +1,17 @@
+# Rust
+/target
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+build/
+dist/
+*.egg-info/
+.venv/
+.eggs/
+
+# PDF extraction cache (exploration only)
+.pdfwork/

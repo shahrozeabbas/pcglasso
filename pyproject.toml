@@ -1,0 +1,37 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "pcglasso"
+version = "0.1.0"
+description = "Partial Correlation Graphical LASSO (PCGLASSO) — fast Rust-backed Python implementation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "pcglasso-dev" }]
+keywords = [
+    "graphical-lasso",
+    "partial-correlation",
+    "precision-matrix",
+    "gaussian-graphical-model",
+    "sparse-estimation",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+]
+dependencies = ["numpy>=1.23"]
+
+[project.urls]
+Homepage = "https://github.com/JackStorrorCarter/PCGLASSO"
+
+[tool.maturin]
+# Mixed Rust/Python layout: Rust extension compiled as `pcglasso._core`,
+# pure-Python sources live under `python/`.
+features = ["pyo3/extension-module"]
+module-name = "pcglasso._core"
+python-source = "python"
