@@ -81,26 +81,6 @@ for X_b in resamples:          # similar-but-different datasets
 | `c`     | Diagonal parameter (`c = 1 − α` of Bogdan et al.). `None` ⇒ data-dependent default. |
 | `method`| `"primal"` (default) or `"dual"`. |
 
-## Releasing
-
-CI (`.github/workflows/ci.yml`) builds the extension and runs a smoke test on
-Linux/macOS/Windows for every push and PR.
-
-Releases are automated by `.github/workflows/release.yml`:
-
-1. Bump the version in **both** `pyproject.toml` and `Cargo.toml`.
-2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
-
-The tag triggers wheel builds (Linux x86_64/aarch64, macOS universal2, Windows
-x64 — `abi3`, so one wheel per platform covers Python ≥ 3.10), creates a GitHub
-release with the artifacts, and publishes to PyPI via **trusted publishing**
-(OIDC; no stored token). A manual run (Actions → *Release* → *Run workflow*) can
-publish to TestPyPI for a dry run.
-
-**One-time setup:** register the repository as a trusted publisher on PyPI (and
-TestPyPI) — project → *Publishing* → add a GitHub Actions publisher pointing at
-workflow `release.yml`.
-
 ## Status
 
 Early version. The implementation follows the R package and the two source

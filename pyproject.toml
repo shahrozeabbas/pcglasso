@@ -27,7 +27,7 @@ classifiers = [
 dependencies = ["numpy>=1.23"]
 
 [project.urls]
-Homepage = "https://github.com/JackStorrorCarter/PCGLASSO"
+Homepage = "https://github.com/shahrozeabbas/pcglasso"
 
 [tool.maturin]
 # Mixed Rust/Python layout: Rust extension compiled as `pcglasso._core`,
