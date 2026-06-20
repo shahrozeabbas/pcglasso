@@ -15,3 +15,6 @@ dist/
 
 # PDF extraction cache (exploration only)
 .pdfwork/
+
+# Throwaway dev scripts (parity / benchmark)
+scratch/

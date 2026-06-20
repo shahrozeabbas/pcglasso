@@ -15,6 +15,7 @@
 //! warm starts work seamlessly.
 
 use crate::common::soft_threshold;
+use numpy::ndarray::linalg::general_mat_vec_mul;
 use numpy::ndarray::{Array1, Array2};
 
 const MAX_INNER_LASSO: usize = 100;
@@ -49,14 +50,8 @@ pub fn r_update_dual(
         let mut outer_change = 0.0_f64;
 
         for j in 0..p {
-            // v = W * beta[:, j]
-            for i in 0..p {
-                let mut acc = 0.0;
-                for k in 0..p {
-                    acc += w_mat[[i, k]] * beta[[k, j]];
-                }
-                v[i] = acc;
-            }
+            // v = W * beta[:, j]  (GEMV; W is symmetric, so no transpose needed).
+            general_mat_vec_mul(1.0, &*w_mat, &beta.column(j), 0.0, &mut v);
 
             // Inner box-constrained LASSO over beta[:, j] (i != j).
             for _ in 0..MAX_INNER_LASSO {
@@ -72,9 +67,7 @@ pub fn r_update_dual(
                     let delta = beta_new - beta[[i, j]];
                     if delta != 0.0 {
                         beta[[i, j]] = beta_new;
-                        for k in 0..p {
-                            v[k] += delta * w_mat[[k, i]];
-                        }
+                        v.scaled_add(delta, &w_mat.column(i));
                         let ad = delta.abs();
                         if ad > delta_max {
                             delta_max = ad;

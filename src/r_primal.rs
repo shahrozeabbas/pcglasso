@@ -12,7 +12,7 @@
 //! and `W` is refreshed with a rank update — O(p^3) per sweep, no
 //! eigendecomposition.
 
-use numpy::ndarray::{Array1, Array2};
+use numpy::ndarray::{s, Array1, Array2, Zip};
 
 const MAX_COLUMN_SWEEPS: usize = 100;
 
@@ -129,17 +129,32 @@ pub fn r_update_primal(
 
         for i in 0..p {
             let w_ii = w_mat[[i, i]];
+            let di = d[i];
 
             // Build Q = R_11^{-1} = W_{-i,-i} - W_{-i,i} W_{i,-i} / W_ii,
             // s = S'_{-i,i}, and the incumbent column r (skipping index i).
+            // Each Q row is W[fj, :] - (W[fj,i]/W_ii) * W[i, :] with column i
+            // deleted; the deletion is handled by two contiguous segments
+            // (columns < i and columns > i) so the hot loop stays a
+            // bounds-check-free, vectorisable slice operation.
             for jr in 0..m {
                 let fj = if jr < i { jr } else { jr + 1 };
-                s[jr] = d[fj] * c_mat[[fj, i]] * d[i];
+                s[jr] = d[fj] * c_mat[[fj, i]] * di;
                 r[jr] = r_mat[[fj, i]];
-                let wji = w_mat[[fj, i]];
-                for kr in 0..m {
-                    let fk = if kr < i { kr } else { kr + 1 };
-                    q[[jr, kr]] = w_mat[[fj, fk]] - wji * w_mat[[i, fk]] / w_ii;
+
+                // factor = W_{fj,i} / W_ii, hoisted out of the inner loop.
+                let factor = w_mat[[fj, i]] / w_ii;
+                if i > 0 {
+                    Zip::from(q.slice_mut(s![jr, 0..i]))
+                        .and(w_mat.slice(s![fj, 0..i]))
+                        .and(w_mat.slice(s![i, 0..i]))
+                        .for_each(|qv, &w_fj, &w_i| *qv = w_fj - factor * w_i);
+                }
+                if i < p - 1 {
+                    Zip::from(q.slice_mut(s![jr, i..m]))
+                        .and(w_mat.slice(s![fj, i + 1..p]))
+                        .and(w_mat.slice(s![i, i + 1..p]))
+                        .for_each(|qv, &w_fj, &w_i| *qv = w_fj - factor * w_i);
                 }
             }
 
