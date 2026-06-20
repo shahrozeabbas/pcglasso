@@ -26,6 +26,9 @@ classifiers = [
 ]
 dependencies = ["numpy>=1.23"]
 
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
 [project.urls]
 Homepage = "https://github.com/shahrozeabbas/pcglasso"
 
@@ -35,3 +38,6 @@ Homepage = "https://github.com/shahrozeabbas/pcglasso"
 features = ["pyo3/extension-module"]
 module-name = "pcglasso._core"
 python-source = "python"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
