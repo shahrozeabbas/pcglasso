@@ -5,42 +5,46 @@
 [![Python](https://img.shields.io/pypi/pyversions/pcglasso.svg)](https://pypi.org/project/pcglasso/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-A fast Python implementation of the **Partial Correlation Graphical LASSO
-(PCGLASSO)** with the iterative core written in Rust (PyO3 / maturin).
+`pcglasso` is a Python package for finding direct relationships between
+variables in noisy, high-dimensional data.
 
-PCGLASSO estimates a sparse Gaussian precision matrix by penalising the
-**partial correlations** rather than the raw precision entries (as the graphical
-LASSO does). This makes the estimator **scale invariant** and improves recovery
-of hub-structured graphs.
+Instead of asking which variables are merely correlated, PCGLASSO estimates
+which variables remain connected after accounting for all the others. The result
+can be read as a sparse network: variables are nodes, and selected edges are
+direct conditional relationships.
 
-## Why this implementation
+The package exposes a small Python API and runs the iterative solver in Rust for
+speed.
 
-It implements the two fast coordinate-descent algorithms of Bogdan et al.
-(2026) rather than the proximal-splitting algorithm of the original R package:
+## What you can use it for
 
-- **`method="primal"`** (default) — `pcglassoFast`: a unit-diagonal-constrained
-  GLASSO solved column-by-column with the closed-form Theorem-5 element update.
-  Returns partial correlations directly; strong on hub-structured problems.
-- **`method="dual"`** — `pcglassoFast_Dual`: the GLASSO dual (à la `glassoFast`)
-  with a free diagonal that enforces the unit-diagonal constraint. Often fastest
-  on generic sparse problems.
+- Build an interpretable network from tabular data.
+- Separate direct relationships from indirect correlations.
+- Estimate sparse Gaussian graphical models.
+- Work with data where variable scales differ, because PCGLASSO is scale
+  invariant.
+- Fit repeated, similar problems efficiently with warm starts.
 
-Both share a diagonal-Newton update for the diagonal sub-problem and maintain
-`W = R⁻¹` incrementally, so the hot loop is BLAS-1/2 only — **the Rust core
-needs no BLAS/LAPACK**, which keeps wheels trivially portable.
+Common use cases include genomics, neuroscience, finance, survey analysis, and
+other settings where many variables may be related but only some relationships
+are direct.
 
-## Install / build
+## Install
 
-This is a maturin project (Rust toolchain + Python ≥ 3.10 required):
+```bash
+pip install pcglasso
+```
+
+To build from source, use maturin with Python 3.10 or newer:
 
 ```bash
 pip install maturin
-maturin develop --release      # build the extension into the current venv
+maturin develop --release
 ```
 
-## Usage
+## Quick start
 
-sklearn-style estimator:
+Use `PCGLasso` like a small sklearn-style estimator:
 
 ```python
 import numpy as np
@@ -49,49 +53,87 @@ from pcglasso import PCGLasso
 X = np.random.default_rng(0).standard_normal((200, 20))
 
 model = PCGLasso(alpha=0.1).fit(X)
-model.precision_             # estimated precision matrix
-model.partial_correlation_  # partial correlations (unit diagonal)
-model.adjacency_            # boolean conditional-dependence graph
+
+model.partial_correlation_  # strength of direct relationships
+model.adjacency_            # selected network edges
+model.precision_            # estimated inverse covariance matrix
 ```
 
-Functional form (when you already have a covariance matrix `S`):
+The most readable output is often `adjacency_`, a boolean matrix showing which
+variables are connected after the model has removed weaker indirect effects.
+
+If you already have a covariance or correlation matrix, use the functional API:
 
 ```python
 from pcglasso import pcglasso
 
-res = pcglasso(S, alpha=0.1, c=None, method="dual")
+res = pcglasso(S, alpha=0.1, c=None, method='dual')
 res.precision_, res.partial_correlation_, res.objective_
 ```
 
-### Warm starts
+## Choosing `alpha`
+
+`alpha` controls how sparse the network is:
+
+- Larger `alpha` values remove more edges and produce simpler networks.
+- Smaller `alpha` values keep more edges and produce denser networks.
+
+There is no universal best value. In practice, choose `alpha` by validation,
+stability analysis, domain knowledge, or by fitting a sequence of values and
+inspecting how the graph changes.
+
+## Warm starts
 
 Set `warm_start=True` to reuse the previous solution as the next fit's starting
-point — ideal for a sequence of similar problems (e.g. bootstrap resamples).
-The warm-start state is on the (scale-invariant) correlation scale and works for
-both `method` values.
+point. This is useful for a sequence of similar problems, such as bootstrap
+resamples or a path of nearby `alpha` values.
 
 ```python
 model = PCGLasso(alpha=0.1, warm_start=True)
 graphs = []
-for X_b in resamples:          # similar-but-different datasets
-    model.fit(X_b)             # resumes from the previous solution
+for X_b in resamples:
+    model.fit(X_b)
     graphs.append(model.precision_.copy())
 ```
 
-## Parameters
+## Main outputs
 
-| Name    | Meaning |
-|---------|---------|
-| `alpha` | L1 penalty on off-diagonal partial correlations (`rho` in the R package, `λ` in Bogdan et al.). |
-| `c`     | Diagonal parameter (`c = 1 − α` of Bogdan et al.). `None` ⇒ data-dependent default. |
-| `method`| `"primal"` (default) or `"dual"`. |
+- `partial_correlation_`: direct relationship strengths on a common scale.
+- `adjacency_`: boolean conditional-dependence graph with a zero diagonal.
+- `precision_`: estimated precision matrix.
+- `covariance_`: model-implied covariance matrix.
+- `n_iter_` and `converged_`: basic solver diagnostics.
+
+## Advanced options
+
+PCGLASSO estimates a sparse Gaussian precision matrix by penalising partial
+correlations rather than raw precision-matrix entries. This is what makes the
+estimator scale invariant and helps with hub-structured graphs.
+
+The package includes two coordinate-descent solvers from Bogdan et al. (2026):
+
+- `method='primal'` (default): uses the `pcglassoFast` approach and returns
+  partial correlations directly. This is a good default, especially for
+  hub-structured problems.
+- `method='dual'`: uses the `pcglassoFast_Dual` approach, adapted from the
+  GLASSO dual. This can be faster on some generic sparse problems.
+
+Both solvers use a Rust core through PyO3 and maturin. The hot loop does not
+require BLAS or LAPACK, which helps keep wheels portable.
+
+Other parameters:
+
+- `c`: diagonal parameter. When `None`, the package chooses a data-dependent
+  default.
+- `max_iter`: maximum number of outer iterations.
+- `tol`: convergence tolerance.
+- `assume_centered`: whether input data has already been centered.
 
 ## Status
 
-Early version. The implementation follows the R package and the two source
-papers; **no automated test suite is included yet** (CI does a build plus a
-smoke test). Wheels are built against the CPython stable ABI (abi3, Python ≥
-3.10) and pinned to pyo3 / rust-numpy 0.22.
+This is an early Python implementation. The implementation follows the original
+R package and the source papers; CI currently builds the package and runs a
+smoke test across Linux, macOS, and Windows.
 
 ## References
 
