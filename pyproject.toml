@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "pcglasso"
-version = "0.1.0"
+version = "0.2.0"
 description = "Partial Correlation Graphical LASSO (PCGLASSO) — fast Rust-backed Python implementation"
 readme = "README.md"
 requires-python = ">=3.10"
