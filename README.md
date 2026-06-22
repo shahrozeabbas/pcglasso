@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/shahrozeabbas/pcglasso/actions/workflows/ci.yml/badge.svg)](https://github.com/shahrozeabbas/pcglasso/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/pcglasso.svg)](https://pypi.org/project/pcglasso/)
-[![Python](https://img.shields.io/pypi/pyversions/pcglasso.svg)](https://pypi.org/project/pcglasso/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 `pcglasso` is a Python package for finding direct relationships between
@@ -23,6 +22,7 @@ speed.
 - Estimate sparse Gaussian graphical models.
 - Work with data where variable scales differ, because PCGLASSO is scale
   invariant.
+- Fit many related column subsets in parallel.
 - Fit repeated, similar problems efficiently with warm starts.
 
 Common use cases include genomics, neuroscience, finance, survey analysis, and
@@ -70,6 +70,31 @@ from pcglasso import pcglasso
 res = pcglasso(S, alpha=0.1, c=None, method='dual')
 res.precision_, res.partial_correlation_, res.objective_
 ```
+
+## Mapping over column subsets
+
+Use `pcglasso_map` when you want to run the same PCGLASSO fit across many
+subsets of columns from one data matrix. This is useful for resampling,
+screening local neighborhoods, or fitting many overlapping feature groups.
+
+```python
+from pcglasso import pcglasso_map
+
+index_sets = [
+    [0, 1, 2, 3],
+    [2, 3, 4, 5],
+    [10, 11, 12],
+]
+
+results = pcglasso_map(X, index_sets, alpha=0.1, n_jobs=-1)
+
+results[0].adjacency_             # graph for columns [0, 1, 2, 3]
+results[0].partial_correlation_   # direct relationships for that subset
+```
+
+`pcglasso_map` returns one `PCGLassoResult` per subset. It runs the independent
+fits in parallel with Rayon; `n_jobs=-1` uses all available cores, `n_jobs=1`
+runs serially. For speed, `covariance_` is `None` in mapped results.
 
 ## Choosing `alpha`
 

@@ -1,20 +1,35 @@
 //! PyO3 bindings for the PCGLASSO Rust core.
 //!
-//! Exposes a single low-level entry point, `pcglasso_solve`, which the Python
-//! layer calls after converting the covariance to a correlation matrix and
-//! resolving the parameters. Targets pyo3 / rust-numpy 0.22.
+//! Exposes low-level entry points: ``pcglasso_solve`` for a single correlation
+//! matrix and ``pcglasso_solve_map`` for parallel fits on column subsets.
+//! Targets pyo3 / rust-numpy 0.22.
 
 use numpy::ndarray::Array2;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
+use pyo3::types::PyList;
+use rayon::prelude::*;
+use rayon::ThreadPoolBuilder;
 
 mod common;
 mod d_update;
+mod map;
 mod r_dual;
 mod r_primal;
 mod solver;
 
+use map::solve_one;
 use solver::{solve, Method};
+
+fn parse_method(method: &str) -> PyResult<Method> {
+    match method {
+        "primal" => Ok(Method::Primal),
+        "dual" => Ok(Method::Dual),
+        other => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "method must be 'primal' or 'dual', got {other:?}"
+        ))),
+    }
+}
 
 /// Solve PCGLASSO on a correlation matrix.
 ///
@@ -51,15 +66,7 @@ fn pcglasso_solve<'py>(
     bool,
     f64,
 )> {
-    let m = match method {
-        "primal" => Method::Primal,
-        "dual" => Method::Dual,
-        other => {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "method must be 'primal' or 'dual', got {other:?}"
-            )))
-        }
-    };
+    let m = parse_method(method)?;
 
     let c_owned: Array2<f64> = c.as_array().to_owned();
 
@@ -85,8 +92,82 @@ fn pcglasso_solve<'py>(
     ))
 }
 
+/// Parallel PCGLASSO over column subsets of a data matrix.
+///
+/// Parameters
+/// ----------
+/// x        : (n_samples, n_features) data matrix.
+/// indptr   : CSR row pointers into ``indices``, length n_sets + 1.
+/// indices  : flattened column indices for each subset.
+/// alpha    : L1 penalty.
+/// c_opt    : diagonal parameter; ``None`` selects the arithmetic default.
+/// method   : "primal" or "dual".
+/// max_iter : maximum outer iterations per subset.
+/// tol      : outer convergence tolerance.
+/// n_threads: Rayon pool size; 0 uses the Rayon default.
+///
+/// Returns a list of per-subset tuples
+/// ``(R, d, sd, W, n_iter, converged, objective, c_diag)``.
+#[pyfunction]
+#[pyo3(signature = (x, indptr, indices, alpha, c_opt, method, max_iter, tol, n_threads=0))]
+#[allow(clippy::too_many_arguments)]
+fn pcglasso_solve_map<'py>(
+    py: Python<'py>,
+    x: PyReadonlyArray2<'py, f64>,
+    indptr: PyReadonlyArray1<'py, i64>,
+    indices: PyReadonlyArray1<'py, i64>,
+    alpha: f64,
+    c_opt: Option<f64>,
+    method: &str,
+    max_iter: usize,
+    tol: f64,
+    n_threads: usize,
+) -> PyResult<Bound<'py, PyList>> {
+    let m = parse_method(method)?;
+    let x_view = x.as_array();
+    let indptr_slice = indptr.as_slice()?;
+    let indices_slice = indices.as_slice()?;
+    let n_sets = indptr_slice.len().saturating_sub(1);
+
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(n_threads)
+        .build()
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+
+    let results = py.allow_threads(|| {
+        pool.install(|| {
+            (0..n_sets)
+                .into_par_iter()
+                .map(|t| {
+                    let lo = indptr_slice[t] as usize;
+                    let hi = indptr_slice[t + 1] as usize;
+                    let cols = &indices_slice[lo..hi];
+                    solve_one(&x_view, cols, alpha, c_opt, m, max_iter, tol)
+                })
+                .collect::<Vec<_>>()
+        })
+    });
+
+    let out = PyList::empty_bound(py);
+    for res in results {
+        let tuple = (
+            res.r.into_pyarray_bound(py),
+            res.d.into_pyarray_bound(py),
+            res.sd.into_pyarray_bound(py),
+            res.w.into_pyarray_bound(py),
+            res.n_iter,
+            res.converged,
+            res.objective,
+            res.c_diag,
+        );
+        out.append(tuple)?;
+    }
+    Ok(out)
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pcglasso_solve, m)?)?;
+    m.add_function(wrap_pyfunction!(pcglasso_solve_map, m)?)?;
     Ok(())
 }

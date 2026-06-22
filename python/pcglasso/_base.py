@@ -9,6 +9,7 @@ matrix.
 
 from __future__ import annotations
 
+import os
 import warnings
 
 import numpy as np
@@ -17,6 +18,92 @@ from . import _core
 
 # Eigenvalues below this are treated as zero when detecting rank deficiency.
 _PD_TOL = 1e-8
+
+
+def _symmetrize_r(R):
+    R = np.asarray(R, dtype=np.float64)
+    R = (R + R.T) * 0.5
+    np.fill_diagonal(R, 1.0)
+    return R
+
+
+def _assemble_result(
+    R,
+    dvec,
+    sd,
+    *,
+    objective,
+    n_iter,
+    converged,
+    c_val,
+    W,
+    compute_covariance=True,
+):
+    """Build precision / partial-correlation / adjacency from solver outputs."""
+    R = _symmetrize_r(R)
+    sd = np.asarray(sd, dtype=np.float64)
+    dvec = np.asarray(dvec, dtype=np.float64)
+    W = np.asarray(W, dtype=np.float64)
+
+    g = dvec / sd
+    precision = R * np.outer(g, g)
+    precision = (precision + precision.T) * 0.5
+
+    partial_correlation = -R.copy()
+    np.fill_diagonal(partial_correlation, 1.0)
+
+    adjacency = R != 0.0
+    np.fill_diagonal(adjacency, False)
+
+    covariance = None
+    if compute_covariance:
+        covariance = np.linalg.inv(precision)
+        covariance = (covariance + covariance.T) * 0.5
+
+    return {
+        "precision": precision,
+        "partial_correlation": partial_correlation,
+        "adjacency": adjacency,
+        "covariance": covariance,
+        "n_iter": int(n_iter),
+        "converged": bool(converged),
+        "objective": float(objective),
+        "c": float(c_val),
+        "state": (
+            np.ascontiguousarray(R),
+            np.ascontiguousarray(W),
+            np.ascontiguousarray(dvec),
+        ),
+    }
+
+
+def _resolve_n_threads(n_jobs):
+    """Map sklearn-style ``n_jobs`` to a Rayon thread count (0 = default)."""
+    if n_jobs == 0:
+        return 0
+    if hasattr(os, "sched_getaffinity"):
+        n_cpus = len(os.sched_getaffinity(0))
+    else:
+        n_cpus = os.cpu_count() or 1
+    if n_jobs < 0:
+        if n_jobs == -1:
+            return n_cpus
+        return max(1, n_cpus + 1 + n_jobs)
+    return n_jobs
+
+
+def _pack_index_sets(index_sets):
+    """Pack ragged column-index arrays into CSR ``(indptr, indices)``."""
+    indptr = [0]
+    indices = []
+    for subset in index_sets:
+        cols = np.asarray(subset, dtype=np.int64).ravel()
+        indices.extend(cols.tolist())
+        indptr.append(len(indices))
+    return (
+        np.asarray(indptr, dtype=np.int64),
+        np.asarray(indices, dtype=np.int64),
+    )
 
 
 def _validate_covariance(S):
@@ -115,41 +202,19 @@ def solve_precision(
         warm_d,
     )
 
-    # The dual solver recovers R = -beta, which is only exactly symmetric at
-    # convergence; symmetrise so the reported matrices are always symmetric.
-    R = np.asarray(R, dtype=np.float64)
-    R = (R + R.T) * 0.5
-    np.fill_diagonal(R, 1.0)
-
-    # Rescale to the original variable scale. Because PCGLASSO is scale
-    # invariant, the partial correlations are just the (negated) off-diagonals
-    # of R; the precision is diag(g) R diag(g) with g = d / sqrt(diag(S)).
-    g = dvec / sd
-    precision = R * np.outer(g, g)
-    precision = (precision + precision.T) * 0.5
-
-    partial_correlation = -R.copy()
-    np.fill_diagonal(partial_correlation, 1.0)
-
-    adjacency = R != 0.0
-    np.fill_diagonal(adjacency, False)
-
-    covariance = np.linalg.inv(precision)
-    covariance = (covariance + covariance.T) * 0.5
+    assembled = _assemble_result(
+        R,
+        dvec,
+        sd,
+        objective=objective,
+        n_iter=n_iter,
+        converged=converged,
+        c_val=c_val,
+        W=W,
+        compute_covariance=True,
+    )
 
     return {
-        "precision": precision,
-        "partial_correlation": partial_correlation,
-        "adjacency": adjacency,
-        "covariance": covariance,
-        "n_iter": int(n_iter),
-        "converged": bool(converged),
-        "objective": float(objective),
-        "c": float(c_val),
+        **assembled,
         "n_zero_eigenvalues": k,
-        "state": (
-            np.ascontiguousarray(R),
-            np.ascontiguousarray(W),
-            np.ascontiguousarray(dvec),
-        ),
     }

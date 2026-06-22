@@ -11,7 +11,7 @@ authors:
 license: GPL-3.0-or-later
 repository-code: 'https://github.com/shahrozeabbas/pcglasso'
 url: 'https://github.com/shahrozeabbas/pcglasso'
-version: 0.1.0
+version: 0.2.0
 keywords:
   - graphical-lasso
   - partial-correlation

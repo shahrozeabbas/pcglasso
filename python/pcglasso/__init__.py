@@ -5,7 +5,7 @@ implemented in Rust. Two coordinate-descent solvers are available
 (``method="primal"`` and ``method="dual"``).
 """
 
-from ._functional import PCGLassoResult, pcglasso
+from ._functional import PCGLassoResult, pcglasso, pcglasso_map
 from .estimator import PCGLasso
 
 # sklearn-style long alias.
@@ -15,6 +15,7 @@ __all__ = [
     "PCGLasso",
     "PartialCorrelationGraphicalLasso",
     "pcglasso",
+    "pcglasso_map",
     "PCGLassoResult",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0"
